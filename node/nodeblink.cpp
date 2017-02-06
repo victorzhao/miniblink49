@@ -1,5 +1,7 @@
 ﻿#include "include/nodeblink.h"
 
+#include "gin/v8_initializer.h"
+#include "libplatform/libplatform.h"
 #include <string.h>
 #include <Windows.h>
 #include <process.h>
@@ -24,11 +26,19 @@ static void workerRun(NodeArgc* nodeArgc) {
     err = uv_async_init(nodeArgc->childLoop, &nodeArgc->async, childSignalCallback);
     if (err != 0)
         goto async_init_failed;
+
     //uv_unref(reinterpret_cast<uv_handle_t*>(&nodeArgc->async)); //zero 不屏蔽此句导致loop循环退出
     nodeArgc->initType = true;
-    ::PulseEvent(nodeArgc->initEvent);
+    ::SetEvent(nodeArgc->initEvent);
 
     {
+        nodeArgc->v8platform = v8::platform::CreateDefaultPlatform(4);
+        gin::V8Initializer::SetV8Platform(nodeArgc->v8platform);
+        //v8::V8::InitializePlatform(nodeArgc->v8platform);
+
+        if (nodeArgc->preInitcall)
+            nodeArgc->preInitcall(nodeArgc);
+
         v8::Isolate::CreateParams params;
         node::ArrayBufferAllocator array_buffer_allocator;
         params.array_buffer_allocator = &array_buffer_allocator;
@@ -40,14 +50,14 @@ static void workerRun(NodeArgc* nodeArgc) {
 
             v8::Context::Scope context_scope(context);
             nodeArgc->childEnv = node::CreateEnvironment(isolate, nodeArgc->childLoop, context, nodeArgc->argc, nodeArgc->argv, nodeArgc->argc, nodeArgc->argv);
-
+            nodeArgc->childEnv->file_system_hooks(nodeArgc->fsHooks);
             // Expose API
             LoadEnvironment(nodeArgc->childEnv);
 
             if (nodeArgc->initcall)
                 nodeArgc->initcall(nodeArgc);
             CHECK_EQ(nodeArgc->childLoop, nodeArgc->childEnv->event_loop());
-            uv_run(nodeArgc->childLoop, UV_RUN_DEFAULT);
+            //uv_run(nodeArgc->childLoop, UV_RUN_DEFAULT); // 由nodeArgc->initcall里负责消息循环
         }
         // Clean-up all running handles
         nodeArgc->childEnv->CleanupHandles();
@@ -56,6 +66,9 @@ static void workerRun(NodeArgc* nodeArgc) {
         nodeArgc->childEnv = nullptr;
 
         isolate->Dispose();
+
+        delete nodeArgc->v8platform;
+        nodeArgc->v8platform = nullptr;
     }
     return;
 
@@ -65,13 +78,15 @@ async_init_failed:
 loop_init_failed:
     free(nodeArgc);
     nodeArgc->initType = false;
-    ::PulseEvent(nodeArgc->initEvent);
+    ::SetEvent(nodeArgc->initEvent);
 }
 
-extern "C" NODE_EXTERN NodeArgc* runNodeThread(int argc, wchar_t *wargv[], NodeInitCallBack initcall, void *data) {
+extern "C" NODE_EXTERN NodeArgc* runNodeThread(int argc, const wchar_t *wargv[], NodeInitCallBack initcall, NodeInitCallBack preInitcall, Environment::FileSystemHooks* filesystemHooks, void *data) {
     NodeArgc* nodeArgc = (NodeArgc *)malloc(sizeof(NodeArgc));
     memset(nodeArgc, 0, sizeof(NodeArgc));
     nodeArgc->initcall = initcall;
+    nodeArgc->preInitcall = preInitcall;
+    nodeArgc->fsHooks = filesystemHooks;
     nodeArgc->data = data;
     nodeArgc->childLoop = (uv_loop_t *)malloc(sizeof(uv_loop_t));
     nodeArgc->argv = new char*[argc + 1];
@@ -90,7 +105,7 @@ extern "C" NODE_EXTERN NodeArgc* runNodeThread(int argc, wchar_t *wargv[], NodeI
     nodeArgc->argv[argc] = nullptr;
     nodeArgc->argc = argc;
 
-    nodeArgc->initEvent = ::CreateEvent(NULL, FALSE, FALSE, NULL);//创建一个对象,用来等待node环境基础环境创建成功
+    nodeArgc->initEvent = ::CreateEvent(NULL, FALSE, FALSE, NULL); // 创建一个对象,用来等待node环境基础环境创建成功
     int err = uv_thread_create(&nodeArgc->thread, reinterpret_cast<uv_thread_cb>(workerRun), nodeArgc);
     if (err != 0)
         goto thread_create_failed;
