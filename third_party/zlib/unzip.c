@@ -1,8 +1,8 @@
-﻿#include <stdio.h>
+﻿#define _CRT_SECURE_NO_WARNINGS 1
+
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-
 
 #ifdef STDC
 #  include <stddef.h>
@@ -21,7 +21,7 @@
 //-------------------------------------------------------------------------头-----------------------------------------------------------------------------------------------------------
 
 #ifndef _ZLIB_H
-#include <zlib/zlib.h>
+#include "zlib.h"
 #endif
 #include <stdlib.h>
 
