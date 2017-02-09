@@ -1,3 +1,4 @@
+'use strict';
 const app = require('electron').app;
 const dialog = require('electron').dialog;
 const shell = require('electron').shell;
@@ -34,7 +35,7 @@ for (let i = 0; i < argv.length; i++) {
   } else if (argv[i][0] === '-') {
     continue
   } else {
-    option.file = argv[i]
+    option.file = 'file:///E:/mycode/miniblink49/trunk/electron/default_app/index.html'// argv[i] --weolar
     break
   }
 }
@@ -365,3 +366,9 @@ if (option.file && !option.webdriver) {
   const indexPath = path.join(__dirname, '/index.html')
   loadApplicationByUrl(`file://${indexPath}`)
 }
+
+// test
+const ipc = require('electron').ipcMain;
+ipc.on('zqz-show',function() {
+    console.log('test ipcMain');
+})

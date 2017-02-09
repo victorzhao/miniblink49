@@ -14,14 +14,14 @@ public:
     }
 
     static void init(v8::Local<v8::Object> target, v8::Isolate* isolate) {
-        v8::Local<v8::FunctionTemplate> prototype = v8::FunctionTemplate::New(isolate, newFunction);
-
-        prototype->SetClassName(v8::String::NewFromUtf8(isolate, "electron"));
-        gin::ObjectTemplateBuilder builder(isolate, prototype->InstanceTemplate());
-        builder.SetMethod("quit", &Electron::nullFunction);
-        
-
-        constructor.Reset(isolate, prototype->GetFunction());
+//         v8::Local<v8::FunctionTemplate> prototype = v8::FunctionTemplate::New(isolate, newFunction);
+// 
+//         prototype->SetClassName(v8::String::NewFromUtf8(isolate, "electron"));
+//         gin::ObjectTemplateBuilder builder(isolate, prototype->InstanceTemplate());
+//         builder.SetMethod("quit", &Electron::nullFunction);
+//         
+//         constructor.Reset(isolate, prototype->GetFunction());
+//         target->Set(v8::String::NewFromUtf8(isolate, "Electron"), prototype->GetFunction());
     }
 
     void nullFunction() {
@@ -30,6 +30,8 @@ public:
     static void newFunction(const v8::FunctionCallbackInfo<v8::Value>& args) {
         v8::Isolate* isolate = args.GetIsolate();
         v8::HandleScope scope(isolate);
+
+        new Electron(isolate, args.This());
 
         if (args.IsConstructCall()) {
             args.GetReturnValue().Set(args.This());
