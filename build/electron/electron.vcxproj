@@ -27,6 +27,7 @@
     <ClCompile Include="..\..\base\ostream_for_other_vc6.cpp" />
     <ClCompile Include="..\..\base\strings\string_piece.cc" />
     <ClCompile Include="..\..\base\thread.cc" />
+    <ClCompile Include="..\..\base\values.cc" />
     <ClCompile Include="..\..\cef\libcef_dll\base\cef_atomicops_x86_gcc.cc" />
     <ClCompile Include="..\..\cef\libcef_dll\base\cef_bind_helpers.cc" />
     <ClCompile Include="..\..\cef\libcef_dll\base\cef_callback_helpers.cc" />
@@ -45,10 +46,15 @@
     <ClCompile Include="..\..\electron\browser\api\ApiWebContents.cpp" />
     <ClCompile Include="..\..\electron\browser\api\ApiWindow.cpp" />
     <ClCompile Include="..\..\electron\browser\api\WindowList.cpp" />
-    <ClCompile Include="..\..\electron\common\api\event.cc" />
-    <ClCompile Include="..\..\electron\common\api\event_emitter.cc" />
-    <ClCompile Include="..\..\electron\common\api\event_emitter_caller.cc" />
+    <ClCompile Include="..\..\electron\common\api\ApV8Util.cpp" />
+    <ClCompile Include="..\..\electron\common\api\Event.cpp" />
+    <ClCompile Include="..\..\electron\common\api\EventEmitter.cpp" />
+    <ClCompile Include="..\..\electron\common\api\EventEmitterCaller.cpp" />
+    <ClCompile Include="..\..\electron\common\api\ObjectLifeMonitor.cpp" />
+    <ClCompile Include="..\..\electron\common\api\RemoteCallbackFreer.cpp" />
+    <ClCompile Include="..\..\electron\common\api\RemoteObjectFreer.cpp" />
     <ClCompile Include="..\..\electron\common\AtomCommandLine.cpp" />
+    <ClCompile Include="..\..\electron\common\IdLiveDetect.cpp" />
     <ClCompile Include="..\..\electron\common\NodeBinding.cpp" />
     <ClCompile Include="..\..\electron\common\NodeThread.cpp" />
     <ClCompile Include="..\..\electron\common\OptionsSwitches.cpp" />
@@ -67,13 +73,23 @@
   <ItemGroup>
     <ClInclude Include="..\..\base\strings\string_piece.h" />
     <ClInclude Include="..\..\base\thread.h" />
+    <ClInclude Include="..\..\base\values.h" />
     <ClInclude Include="..\..\electron\browser\api\ApiApp.h" />
     <ClInclude Include="..\..\electron\browser\api\ApiWebContents.h" />
     <ClInclude Include="..\..\electron\browser\api\WindowList.h" />
-    <ClInclude Include="..\..\electron\common\api\event.h" />
-    <ClInclude Include="..\..\electron\common\api\event_emitter.h" />
-    <ClInclude Include="..\..\electron\common\api\event_emitter_caller.h" />
+    <ClInclude Include="..\..\electron\common\api\ApiKeyWeakMap.h" />
+    <ClInclude Include="..\..\electron\common\api\Event.h" />
+    <ClInclude Include="..\..\electron\common\api\EventEmitter.h" />
+    <ClInclude Include="..\..\electron\common\api\EventEmitterCaller.h" />
+    <ClInclude Include="..\..\electron\common\api\GetConstructorFromTls.h" />
+    <ClInclude Include="..\..\electron\common\api\ObjectLifeMonitor.h" />
+    <ClInclude Include="..\..\electron\common\api\RemoteCallbackFreer.h" />
+    <ClInclude Include="..\..\electron\common\api\RemoteObjectFreer.h" />
     <ClInclude Include="..\..\electron\common\AtomCommandLine.h" />
+    <ClInclude Include="..\..\electron\common\AtomVersion.h" />
+    <ClInclude Include="..\..\electron\common\ChromeVersion.h" />
+    <ClInclude Include="..\..\electron\common\IdLiveDetect.h" />
+    <ClInclude Include="..\..\electron\common\KeyWeakMap.h" />
     <ClInclude Include="..\..\electron\common\NodeBinding.h" />
     <ClInclude Include="..\..\electron\common\NodeRegisterHelp.h" />
     <ClInclude Include="..\..\electron\common\NodeThread.h" />
@@ -89,9 +105,6 @@
     <ClInclude Include="..\..\gin\object_template_builder.h" />
     <ClInclude Include="..\..\gin\per_isolate_data.h" />
     <ClInclude Include="..\..\gin\wrappable.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="ClassDiagram.cd" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{419D9B69-AC50-49EA-9188-40FB63BE1C90}</ProjectGuid>

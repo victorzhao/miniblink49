@@ -369,6 +369,8 @@ if (option.file && !option.webdriver) {
 
 // test
 const ipc = require('electron').ipcMain;
-ipc.on('zqz-show',function() {
-    console.log('test ipcMain');
-})
+ipc.on('zqz-show', function(evt, a1, a2) { // evt, a1, a2
+	evt.returnValue = "{test: 'returnValue'}";
+    console.log('test ipcMain:' + evt + ", " + a1 + ", " + a2);
+});
+////////

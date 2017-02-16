@@ -1,25 +1,56 @@
 ﻿
+#ifndef browser_api_ApiWebContents_h
+#define browser_api_ApiWebContents_h
+
 #include "nodeblink.h"
 #include "wke.h"
-#include "electron.h"
 #include "gin/dictionary.h"
-#include "common/api/event_emitter.h"
+#include "common/api/EventEmitter.h"
+#include <set>
 
-using namespace v8;
-using namespace node;
+namespace base {
+class ListValue;
+}
 
 namespace atom {
 
-// 继承node的ObjectWrap，一般自定义C++类都应该继承node的ObjectWrap
+class NodeBindings;
+class WebContents;
+
+class WebContentsObserver {
+public:
+    virtual void onWebContentsCreated(WebContents* contents) {}
+    virtual void onWebContentsDeleted(WebContents* contents) {}
+};
+
 class WebContents : public mate::EventEmitter<WebContents> {
 public:
-    static void init(v8::Isolate* isolate, Local<Object> target, Environment* env);
-    static WebContents* create(Isolate* isolate, gin::Dictionary options);
+    struct CreateWindowParam {
+        int x;
+        int y;
+        int width;
+        int height;
+        unsigned styles;
+        unsigned styleEx;
+        bool transparent;
+        std::wstring title;
+    };
+
+    static void init(v8::Isolate* isolate, v8::Local<v8::Object> target, node::Environment* env);
+    static WebContents* create(v8::Isolate* isolate, gin::Dictionary options);
 
     explicit WebContents(v8::Isolate* isolate, v8::Local<v8::Object> wrapper);
     ~WebContents();
 
+    void addObserver(WebContentsObserver* observer);
+    void removeObserver(WebContentsObserver* observer);
+
     wkeWebView getWkeView() const { return m_view; }
+
+    void onNewWindowInBlinkThread(const CreateWindowParam* createWindowParam);
+
+    void postMessage(const std::string& channel, const base::ListValue& listParams);
+    void sendMessage(const std::string& channel, const base::ListValue& listParams, std::string* jsonRet);
 
 private:
     static void newFunction(const v8::FunctionCallbackInfo<v8::Value>& args);
@@ -164,13 +195,20 @@ private:
     
     void nullFunction();
 
+    static void staticDidCreateScriptContextCallback(wkeWebView webView, void* param, void* frame, void* context, int extensionGroup, int worldId);
+    void onDidCreateScriptContext(wkeWebView webView, void* frame, v8::Local<v8::Context>* context, int extensionGroup, int worldId);
+
 public:
     static v8::Persistent<v8::Function> constructor;
     static gin::WrapperInfo kWrapperInfo;
 
 private:
+    NodeBindings* m_nodeBinding;
     int m_id;
+    std::set<WebContentsObserver*> m_observers;
     wkeWebView m_view;
 };
 
 } // atom
+
+#endif // browser_api_ApiWebContents_h

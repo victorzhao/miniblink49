@@ -1,32 +1,22 @@
 ﻿
-#include "ApiWebContents.h"
+#include "browser/api/ApiWebContents.h"
 
-#include <node_object_wrap.h>
 #include "wke.h"
 #include "common/ThreadCall.h"
 #include "common/NodeRegisterHelp.h"
 #include "common/IdLiveDetect.h"
+#include "common/NodeBinding.h"
 #include "gin/dictionary.h"
 #include "gin/object_template_builder.h"
-
-using namespace v8;
-using namespace node;
+#include "base/values.h"
 
 namespace atom {
 
-#pragma warning(push)
-#pragma warning(disable:4309)
-#pragma warning(disable:4838)
-static const char helloNative[] = { 239,187,191,39,117,115,101,32,115,116,114,105,99,116,39,59,10,99,111,110,115,116,32,98,105,110,100,105,110,103,32,61,32,112,114,111,99,101,115,115,46,98,105,110,100,105,110,103,40,39,104,101,108,108,111,39,41,59,10,101,120,112,111,114,116,115,46,77,101,116,104,111,100,32,61,32,98,105,110,100,105,110,103,46,77,101,116,104,111,100,59,10,10,10 };
-#pragma warning(pop)
-
-static NodeNative nativeHello{ "hello", helloNative, sizeof(helloNative) };
-
-void WebContents::init(v8::Isolate* isolate, v8::Local<v8::Object> target, Environment* env) {
+void WebContents::init(v8::Isolate* isolate, v8::Local<v8::Object> target, node::Environment* env) {
 
     v8::Local<v8::FunctionTemplate> prototype = v8::FunctionTemplate::New(isolate, WebContents::newFunction);
 
-    prototype->SetClassName(v8::String::NewFromUtf8(isolate, "IpcRenderer"));
+    prototype->SetClassName(v8::String::NewFromUtf8(isolate, "WebContents"));
     gin::ObjectTemplateBuilder builder(isolate, prototype->InstanceTemplate());
     builder.SetMethod("getId", &WebContents::nullFunction);
     builder.SetMethod("getProcessId", &WebContents::nullFunction);
@@ -112,8 +102,6 @@ void WebContents::init(v8::Isolate* isolate, v8::Local<v8::Object> target, Envir
 }
 
 WebContents* WebContents::create(v8::Isolate* isolate, gin::Dictionary options) {
-    v8::HandleScope scope(isolate);
-
     const int argc = 1;
     v8::Local<v8::Value> argv[argc] = { gin::ConvertToV8(isolate, options) };
     v8::Local<v8::Function> constructorFunction = v8::Local<v8::Function>::New(isolate, constructor);
@@ -129,37 +117,108 @@ WebContents::WebContents(v8::Isolate* isolate, v8::Local<v8::Object> wrapper) {
     WebContents* self = this;
     ThreadCall::callBlinkThreadSync([self] {
         self->m_view = wkeCreateWebView();
+        wkeSetUserKayValue(self->m_view, "WebContents", self);
     });    
 }
 
 WebContents::~WebContents() {
     //wkeDestroyWebView(m_view);
+    if (m_nodeBinding)
+        delete m_nodeBinding;
+
+    for (auto it : m_observers) {
+        (it)->onWebContentsDeleted(this);
+    }
+
     IdLiveDetect::get()->deconstructed(m_id);
 }
 
+void WebContents::addObserver(WebContentsObserver* observer) {
+    m_observers.insert(observer);
+}
+
+void WebContents::removeObserver(WebContentsObserver* observer) {
+    auto it = m_observers.find(observer);
+    m_observers.erase(it);
+}
+
+
 // new方法
 void WebContents::newFunction(const v8::FunctionCallbackInfo<v8::Value>& args) {
-    Isolate* isolate = args.GetIsolate();
-    HandleScope scope(isolate);
-
+    v8::Isolate* isolate = args.GetIsolate();
     if (args.IsConstructCall()) {
         if (args.Length() > 1)
             return;
         
-        // 使用new调用 `new Point(...)`
         gin::Dictionary options(args.GetIsolate(), args[0]->ToObject());
-        // new一个对象
         WebContents* webContents = new WebContents(isolate, args.This());
         
         args.GetReturnValue().Set(args.This());
     } else {
-        // 使用`Point(...)`
         const int argc = 2;
-        Local<Value> argv[argc] = { args[0], args[1] };
-        // 使用constructor构建Function
-        Local<Function> cons = Local<Function>::New(isolate, constructor);
+        v8::Local<v8::Value> argv[argc] = { args[0], args[1] };
+        v8::Local<v8::Function> cons = v8::Local<v8::Function>::New(isolate, constructor);
         args.GetReturnValue().Set(cons->NewInstance(argc, argv));
     }
+}
+
+void WebContents::onNewWindowInBlinkThread(const CreateWindowParam* createWindowParam) {
+    if (createWindowParam->transparent)
+        wkeSetTransparent(getWkeView(), true);
+    wkeSettings settings;
+    settings.mask = WKE_SETTING_PAINTCALLBACK_IN_OTHER_THREAD;
+    wkeConfigure(&settings);
+    wkeResize(getWkeView(), createWindowParam->width, createWindowParam->height);
+    wkeOnDidCreateScriptContext(getWkeView(), &WebContents::staticDidCreateScriptContextCallback, this);
+}
+
+void WebContents::staticDidCreateScriptContextCallback(wkeWebView webView, void* param, void* frame, void* context, int extensionGroup, int worldId) {
+    WebContents* self = (WebContents*)param;
+    self->onDidCreateScriptContext(webView, frame, (v8::Local<v8::Context>*)context, extensionGroup, worldId);
+}
+
+void WebContents::onDidCreateScriptContext(wkeWebView webView, void* frame, v8::Local<v8::Context>* context, int extensionGroup, int worldId) {
+    if (m_nodeBinding)
+        return;
+
+    BlinkMicrotaskSuppressionHandle handle = nodeBlinkMicrotaskSuppressionEnter((*context)->GetIsolate());
+    m_nodeBinding = new NodeBindings(false, ThreadCall::blinkLoop());
+    node::Environment* env = m_nodeBinding->createEnvironment(*context);
+    node::LoadEnvironment(env);
+    nodeBlinkMicrotaskSuppressionLeave(handle);
+}
+
+void WebContents::postMessage(const std::string& channel, const base::ListValue& listParams) {
+    int id = m_id;
+    WebContents* self = this;
+    std::string* channelWrap = new std::string(channel);
+    base::ListValue* listParamsWrap = listParams.DeepCopy();
+
+    ThreadCall::callUiThreadAsync([self, id, channelWrap, listParamsWrap] {
+        if (IdLiveDetect::get()->isLive(id)) {
+            self->mate::EventEmitter<WebContents>::emit("ipc-message", *listParamsWrap);
+        }
+        delete channelWrap;
+        delete listParamsWrap;
+    });
+}
+
+void WebContents::sendMessage(const std::string& channel, const base::ListValue& listParams, std::string* jsonRet) {
+    WebContents* self = this;
+    const std::string* channelWrap = &channel;
+    const base::ListValue* listParamsWrap = &listParams;
+
+    std::string outValue;
+    listParams.GetString(0, &outValue);
+
+    std::string outValue2;
+    listParams.GetString(2, &outValue2);
+
+    ThreadCall::callUiThreadSync([self, channelWrap, listParamsWrap, jsonRet] {
+        self->mate::EventEmitter<WebContents>::emitWithSender("ipc-message-sync", [jsonRet](const std::string& json) {
+            jsonRet->assign(json.c_str(), json.size());
+        }, *listParamsWrap);
+    });
 }
 
 void WebContents::_loadURLApi(const std::string& url) {
@@ -310,7 +369,6 @@ void WebContents::inspectElementApi() {
 
 void WebContents::setAudioMutedApi() {
     /*Isolate* isolate = args.GetIsolate();
-    HandleScope scope(isolate);
 
     WebContents* webContents = ObjectWrap::Unwrap<WebContents>(args.Holder());
 
@@ -322,7 +380,6 @@ void WebContents::setAudioMutedApi() {
 void WebContents::isAudioMutedApi() {
     /*ThreadCall::callBlinkThreadSync([args] {
         Isolate* isolate = args.GetIsolate();
-        HandleScope scope(isolate);
 
         WebContents* webContents = ObjectWrap::Unwrap<WebContents>(args.Holder());
 
@@ -569,14 +626,19 @@ void WebContents::nullFunction() {
 }
 
 gin::WrapperInfo WebContents::kWrapperInfo = { gin::kEmbedderNativeGin };
-Persistent<Function> WebContents::constructor;
+v8::Persistent<v8::Function> WebContents::constructor;
 
-static void initializeWebContentApi(Local<Object> target, v8::Local<Value> unused, v8::Local<Context> context, const NodeNative* native) {
-    Environment* env = Environment::GetCurrent(context);
+static void initializeWebContentApi(v8::Local<v8::Object> target, v8::Local<v8::Value> unused, v8::Local<v8::Context> context, const NodeNative* native) {
+    node::Environment* env = node::Environment::GetCurrent(context);
     WebContents::init(env->isolate(), target, env);
 }
 
-NODE_MODULE_CONTEXT_AWARE_BUILTIN_SCRIPT_MANUAL(atom_browser_web_contents, initializeWebContentApi, &nativeHello)
+static const char WebContentsSricpt[] =
+"exports = {};";
+
+static NodeNative nativeBrowserWebContentsNative{ "WebContents", WebContentsSricpt, sizeof(WebContentsSricpt) - 1 };
+
+NODE_MODULE_CONTEXT_AWARE_BUILTIN_SCRIPT_MANUAL(atom_browser_web_contents, initializeWebContentApi, &nativeBrowserWebContentsNative)
 
 } // atom
 

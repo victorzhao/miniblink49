@@ -1,7 +1,6 @@
 'use strict'
-console.log('renderer/init.js');
 
-require('./electron.js');
+require('./electron');
 
 const events = require('events');
 const path = require('path');

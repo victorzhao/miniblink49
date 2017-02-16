@@ -5,7 +5,7 @@ const EventEmitter = require('events').EventEmitter;
 
 var binding = new IpcRendererBinding();
 
-const electron = require('electron');
+//const electron = require('electron');
 
 var ipcRenderer = new EventEmitter();
 
@@ -37,5 +37,5 @@ ipcRenderer.sendToAll = function (webContentsId, channel, ...args) {
   ipcRenderer.send('ELECTRON_BROWSER_SEND_TO', true, webContentsId, channel, ...args)
 }
 
-electron.ipcRenderer = ipcRenderer;
-module.exports = ipcRenderer
+//electron.ipcRenderer = ipcRenderer;
+module.exports = ipcRenderer;

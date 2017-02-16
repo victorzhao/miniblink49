@@ -1,7 +1,8 @@
 
 #include "node/include/nodeblink.h"
+#include "browser/api/ApiWebContents.h"
 #include "common/NodeRegisterHelp.h"
-#include "common/api/event_emitter.h"
+#include "common/api/EventEmitter.h"
 #include "gin/dictionary.h"
 #include "gin/arguments.h"
 #include "gin/object_template_builder.h"
@@ -29,45 +30,35 @@ public:
         target->Set(v8::String::NewFromUtf8(isolate, "ipcRenderer"), prototype->GetFunction());
     }
 
-    void rendererIpcSend(const std::string& channel, v8::Local<v8::Array> arguments) {
-        uint32_t len = arguments->Length();
-
+    void rendererIpcSend(const std::string& channel, const base::ListValue& arguments) {
         wkeWebView view = wkeGetWebViewForCurrentContext();
-        OutputDebugStringA("rendererIpcSend\n");
-
-        //     RenderView* render_view = GetCurrentRenderView();
-        //     if (render_view == nullptr)
-        //         return;
-        // 
-        //     bool success = render_view->Send(new AtomViewHostMsg_Message(
-        //         render_view->GetRoutingID(), channel, arguments));
-
-        //     if (!success)
-        //         args->ThrowError("Unable to send AtomViewHostMsg_Message");
+        if (!view)
+            return;
+        WebContents* webContents = (WebContents*)wkeGetUserKayValue(view, "WebContents");
+        if (!webContents)
+            return;
+        webContents->postMessage(channel, arguments);
     }
 
-    std::string rendererIpcSendSync(const std::string& channel, v8::Local<v8::Array> arguments) { // base::ListValue
+    std::string rendererIpcSendSync(const std::string& channel, const base::ListValue& arguments) {
+        wkeWebView view = wkeGetWebViewForCurrentContext();
+        if (!view)
+            return "";
+        WebContents* webContents = (WebContents*)wkeGetUserKayValue(view, "WebContents");
+        if (!webContents)
+            return "";
+
         std::string json;
-        OutputDebugStringA("rendererIpcSendSync\n");
+        webContents->sendMessage(channel, arguments, &json);
 
-        //     RenderView* render_view = GetCurrentRenderView();
-        //     if (render_view == nullptr)
-        //         return json;
-        // 
-        //     IPC::SyncMessage* message = new AtomViewHostMsg_Message_Sync(
-        //         render_view->GetRoutingID(), channel, arguments, &json);
-        //     bool success = render_view->Send(message);
-
-        //     if (!success)
-        //         args->ThrowError("Unable to send AtomViewHostMsg_Message_Sync");
+        if (0 == json.size())
+            json = "{}";
 
         return json;
     }
 
     static void newFunction(const v8::FunctionCallbackInfo<v8::Value>& args) {
         v8::Isolate* isolate = args.GetIsolate();
-        v8::HandleScope scope(isolate);
-
         new IpcRenderer(isolate, args.This());
 
         if (args.IsConstructCall()) {
