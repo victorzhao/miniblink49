@@ -23,10 +23,11 @@ public:
     void bindFunction(gin::Dictionary* dict);
 
     node::Environment* createEnvironment(v8::Local<v8::Context> context);
-
+    void loadEnvironment();
 private:
     bool m_isBrowser;
     uv_loop_t* m_uvLoop;
+    node::Environment* m_env;
 };
 
 } // atom

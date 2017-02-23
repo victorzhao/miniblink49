@@ -89,7 +89,8 @@ const wrapArgs = function (args, visited) {
       }
     }
   }
-  return Array.prototype.slice.call(args).map(valueToMeta)
+  var result = Array.prototype.slice.call(args).map(valueToMeta);
+  return result;
 }
 
 // Populate object's members from descriptors.
@@ -108,7 +109,8 @@ const setObjectMembers = function (ref, object, metaId, members) {
           return metaToValue(ret)
         } else {
           // Call member function.
-          let ret = ipcRenderer.sendSync('ELECTRON_BROWSER_MEMBER_CALL', metaId, member.name, wrapArgs(arguments))
+          var wrapArgsArguments = wrapArgs(arguments);
+          let ret = ipcRenderer.sendSync('ELECTRON_BROWSER_MEMBER_CALL', metaId, member.name, wrapArgsArguments)
           return metaToValue(ret)
         }
       }
